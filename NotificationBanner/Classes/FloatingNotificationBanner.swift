@@ -21,6 +21,93 @@ import SnapKit
 
 open class FloatingNotificationBanner: GrowingNotificationBanner {
     
+    var cachedTitle: String?
+    
+    public convenience init(currentImage: UIImage? = nil,
+                            imageUrl: URL? = nil,
+                            title: String? = nil,
+                            subtitle: String? = nil,
+                            titleFont: UIFont? = nil,
+                            titleColor: UIColor? = nil,
+                            titleTextAlign: NSTextAlignment? = nil,
+                            subtitleFont: UIFont? = nil,
+                            subtitleColor: UIColor? = nil,
+                            subtitleTextAlign: NSTextAlignment? = nil,
+                            leftView: UIView? = nil,
+                            rightView: UIView? = nil,
+                            style: BannerStyle = .info,
+                            colors: BannerColorsProtocol? = nil,
+                            iconPosition: IconPosition = .center) {
+
+        self.init(title: title, subtitle: subtitle, titleFont: titleFont, titleColor: titleColor, titleTextAlign: titleTextAlign, subtitleFont: subtitleFont, subtitleColor: subtitleColor, subtitleTextAlign: subtitleTextAlign, leftView: leftView, rightView: rightView, style: style, colors: colors, iconPosition: iconPosition)
+        
+        var titleToUse = title ?? ""
+        cachedTitle = titleToUse
+        
+        var attach = NSTextAttachment()
+        attach.image = currentImage?.rounded(radius: 20, doCircleIfSquare: true)
+        attach.setImageHeight(height: 40)
+        var attributedString = NSMutableAttributedString(string: "")
+        attributedString.append(NSAttributedString(attachment: attach))
+        
+        let style = NSMutableParagraphStyle()
+        style.alignment = .left
+        let dict1:[NSAttributedString.Key:Any] = [
+            NSAttributedString.Key.font:UIFont(name: "AvenirNextItsme-ItsmeBold", size: 14),
+            NSAttributedString.Key.paragraphStyle:style,
+            NSAttributedString.Key.foregroundColor:UIColor.black
+        ]
+        attributedString.append(NSAttributedString(string: titleToUse, attributes: dict1))
+        
+        if let titleLabel = self.titleLabel {
+            titleLabel.attributedText = attributedString
+        }
+        
+        if let subtitleLabel = self.subtitleLabel {
+            subtitleLabel.textColor = UIColor.black
+        }
+        
+        if let imageUrl = imageUrl {
+            downloadImage(from: imageUrl)
+        }
+    }
+    
+    func getData(from url: URL, completion: @escaping (Data?, URLResponse?, Error?) -> ()) {
+        URLSession.shared.dataTask(with: url, completionHandler: completion).resume()
+    }
+    
+    func downloadImage(from url: URL) {
+        getData(from: url) { [weak self] data, response, error in
+            guard let data = data, error == nil else { return }
+            DispatchQueue.main.async() {
+                
+                guard let strongSelf = self else { return }
+                
+                if let titleLabel = strongSelf.titleLabel {
+                    var attach = NSTextAttachment()
+                    var currentImage = UIImage(data: data)
+                    attach.image = currentImage?.rounded(radius: 20, doCircleIfSquare: true)
+                    attach.setImageHeight(height: 40)
+                    var titleToUse = strongSelf.cachedTitle ?? ""
+                    
+                    var attributedString = NSMutableAttributedString(string: "")
+                    attributedString.append(NSAttributedString(attachment: attach))
+                    
+                    let style = NSMutableParagraphStyle()
+                    style.alignment = .left
+                    let dict1:[NSAttributedString.Key:Any] = [
+                        NSAttributedString.Key.font:UIFont(name: "AvenirNextItsme-ItsmeBold", size: 18),
+                        NSAttributedString.Key.paragraphStyle:style,
+                        NSAttributedString.Key.foregroundColor:UIColor.black
+                    ]
+                    attributedString.append(NSAttributedString(string: titleToUse, attributes: dict1))
+                    
+                    titleLabel.attributedText = attributedString
+                }
+            }
+        }
+    }
+    
     public init(title: String? = nil,
                 subtitle: String? = nil,
                 titleFont: UIFont? = nil,
@@ -156,3 +243,34 @@ private extension FloatingNotificationBanner {
     }
     
 }
+
+private extension NSTextAttachment {
+    
+    func setImageHeight(height: CGFloat) {
+        guard let image = image else { return }
+        let ratio = image.size.width / image.size.height
+
+        bounds = CGRect(x: bounds.origin.x, y: -0.14 * height, width: ratio * height, height: height)
+    }
+}
+
+private extension UIImage {
+
+    public func rounded(radius: CGFloat, doCircleIfSquare: Bool = false) -> UIImage {
+        let rect = CGRect(origin: .zero, size: size)
+        UIGraphicsBeginImageContextWithOptions(size, false, 0)
+        
+        var r = radius
+        
+        if doCircleIfSquare {
+            if abs(size.width - size.height) < 0.01 {
+                r = size.width / 2
+            }
+        }
+        
+        UIBezierPath(roundedRect: rect, cornerRadius: r).addClip()
+        draw(in: rect)
+        return UIGraphicsGetImageFromCurrentImageContext()!
+    }
+}
+
